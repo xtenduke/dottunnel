@@ -1,14 +1,14 @@
-using System.Net.Mail;
-
 namespace server;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
+using tunnel;
 
 public class Server(String listenAddress, Int32 tunnelPort, Int32 clientPort)
 {
-    private TcpClient? proxyConnection;
+    private TcpClient? tunnelConnection;
+    private Tunnel? tunnel;
     
     public void Run()
     {
@@ -32,18 +32,21 @@ public class Server(String listenAddress, Int32 tunnelPort, Int32 clientPort)
         // assuming connected
         NetworkStream clientStream = client.GetStream();
 
-        if (proxyConnection == null || !proxyConnection.Connected)
+        if (tunnel == null || tunnelConnection == null)
         {
-            proxyConnection = CreateListener(listenAddress, tunnelPort).AcceptTcpClient();    
+            tunnelConnection = CreateListener(listenAddress, tunnelPort).AcceptTcpClient();
+            tunnel = new Tunnel(tunnelConnection.GetStream());
         }
+
+        string connectionId = tunnel.AddConnection(clientStream);
         
         // assuming connected
-        NetworkStream proxyStream = proxyConnection.GetStream();
+        NetworkStream proxyStream = tunnelConnection.GetStream();
 
         
-        CrossStreams(clientStream, proxyStream);
+        tunnel.WriteIntoTunnel(clientStream, connectionId);
         Console.WriteLine("Server wrote client to agent");
-        CrossStreams(proxyStream, clientStream);
+        tunnel.WriteFromTunnel();
         Console.WriteLine("Server wrote proxy to user");
     }
 
@@ -56,31 +59,10 @@ public class Server(String listenAddress, Int32 tunnelPort, Int32 clientPort)
         return server;
     }
     
-    private static void CrossStreams(NetworkStream source, NetworkStream destination)
-    {
-        Console.WriteLine("Writing stream");
-        Byte[] buffer = new byte[1024];
-        int i = -1;
-        while (i != 0)
-        {
-            i = source.Read(buffer, 0, buffer.Length);
-            buffer = TrimEnd(buffer);
-            destination.Write(buffer, 0, buffer.Length);
-            // if the last message was smaller than max buffer we can assume that its done
-            if (buffer.Length != 1024)
-            {
-                Console.WriteLine("WillBreak");
-                break;
-            }
-        }
-    }
-    
     public static byte[] TrimEnd(byte[] array)
     {
         int lastIndex = Array.FindLastIndex(array, b => b != 0);
-    
         Array.Resize(ref array, lastIndex + 1);
-    
         return array;
     }
 }
