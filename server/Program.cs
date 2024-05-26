@@ -1,13 +1,5 @@
 ﻿namespace server;
 using System;
-using System.IO;
-using System.Net;
-using System.Net.Sockets;
-using System.Text;
-
-// accept TCP 'tunnel' connections on 3001
-// accept TCP user connections on 80
-// copy between both
 public class Program
 {
     private static readonly String address = "127.0.0.1";
@@ -17,10 +9,11 @@ public class Program
     // Listen to incoming connections to serve to users
     private static readonly Int32 UserPort = 8080;
 
-    public static void Main()
+    public static async Task Main()
     {
         Server server = new Server(address, TunnelPort, UserPort);
-        server.Run();
+
+        await server.Run();
 
     }
 }

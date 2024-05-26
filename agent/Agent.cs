@@ -1,67 +1,93 @@
-using System.Text;
+using System.Net;
 
 namespace agent;
 
 using System.Net.Sockets;
+using tunnel;
 
 // Source address is the source we are connecting to
 // Destination is the server 
 public class Agent(String sourceAddress, Int32 sourcePort, String proxyAddress, Int32 proxyPort)
 {
+    private Tunnel? _tunnel;
+    
     // Open a connection to the destination
-    public void Run()
+    public async Task Run()
     {
         // Connect to the proxy
-        TcpClient proxyClient = new TcpClient();
-        proxyClient.Connect(proxyAddress, proxyPort);
-        NetworkStream proxyStream = proxyClient.GetStream();
-        Console.WriteLine("Connected to proxy server at {0}:{1}", proxyAddress, proxyPort);
+        var tunnelClient = new TcpClient();
+        await tunnelClient.ConnectAsync(proxyAddress, proxyPort);
+        Console.WriteLine("Connected over tunnel at {0}:{1}", proxyAddress, proxyPort);
         
         // Connect to the source
-        TcpClient sourceClient = new TcpClient();
-        sourceClient.Connect(sourceAddress, sourcePort);
-        NetworkStream sourceStream = sourceClient.GetStream();
-        Console.WriteLine("Connected to source at {0}:{1}", sourceAddress, sourcePort);
+        
+        // Take bytes off tunnel - get the connectionId
+        // Open new connection to Source and send request
+        // Get response from source, using connectionId to send the wrapped messages back to the tunnel
+        
+        // init the tunnel
+        _tunnel = new Tunnel(tunnelClient);
+
+        // Single connection from tunnel, we are always reading off it
+        var connectionMap = new Dictionary<string, Connection>();
 
         while (true)
         {
-            Console.WriteLine("Try to read from proxy and write to source");
-            CrossStreams(proxyStream, sourceStream);
-            Console.WriteLine("Agent wrote proxy to source");
-            CrossStreams(sourceStream, proxyStream);
-            Console.WriteLine("Agent wrote source to proxy");
-        }
-    }   
-    
-    private void CrossStreams(NetworkStream source, NetworkStream destination)
-    {
-        // source.CopyTo(destination);
-        Console.WriteLine("Writing stream");
-        Byte[] buffer = new byte[1024];
-        int i = -1;
-        while (i != 0)
-        {
-            i = source.Read(buffer, 0, buffer.Length);
-            buffer = TrimEnd(buffer); // trim trailing from buffer so server doesn't get confused
-            Console.WriteLine("Read length was {0}", i);
-            var message = Encoding.UTF8.GetString(buffer, 0, i);
-            Console.WriteLine($"Message received: \"{message}\"");
-            destination.Write(buffer, 0, buffer.Length);
-            Console.WriteLine("Wrote buffer");
-            if (buffer.Length != 1024)
+            var buffer = new byte[Tunnel.MaxSerializedBufferSize];
+
+            var i = -1;
+            var tunnelStream = tunnelClient.GetStream();
+            tunnelStream.ReadTimeout = Tunnel.ReadTimeoutMs;
+            while (i != 0)
             {
-                break;
+                Console.WriteLine("Agent waiting to read from tunnel");
+                try
+                {
+                    i = tunnelStream.Read(buffer, 0, Tunnel.MaxSerializedBufferSize);
+                }
+                catch (IOException)
+                {
+                    Console.WriteLine("Timed out reading from tunnel");
+                }
+                var encapsulation = _tunnel.Unwrap(buffer);
+                // this will be slow because it's blocking
+                if (!connectionMap.TryGetValue(encapsulation.connectionId, out var connection))
+                {
+                    // create new connection to the source
+                    var sourceClient = new TcpClient();
+                    await sourceClient.ConnectAsync(sourceAddress, sourcePort);
+                    Console.WriteLine("Connected to source at {0}:{1}", sourceAddress, sourcePort);
+
+                    connection = new Connection
+                    {
+                        connectionId = encapsulation.connectionId,
+                        client = sourceClient
+                    };
+
+                    connectionMap.TryAdd(encapsulation.connectionId, connection);
+                }
+
+                var sourceStream = connection.client.GetStream();
+                try
+                {
+                    Console.WriteLine("Agent waiting to write request to source");
+                    await sourceStream.WriteAsync(encapsulation.data, 0, encapsulation.data.Length);
+                }
+                catch (IOException e)
+                {
+                    Console.WriteLine("Caught IOException writing to source {0}", e);
+                    continue;
+                }
+
+                try
+                {
+                    await _tunnel.WriteIntoTunnel(connection.client, encapsulation.connectionId);
+                }
+                catch (IOException e)
+                {
+                    Console.Error.WriteLine("Caught IOException writing to tunnel {0}", e);
+                }
             }
         }
-        Console.WriteLine("Done crossing");
-    }
-    
-    public static byte[] TrimEnd(byte[] array)
-    {
-        int lastIndex = Array.FindLastIndex(array, b => b != 0);
-
-        Array.Resize(ref array, lastIndex + 1);
-
-        return array;
-    }
+    }   
 }

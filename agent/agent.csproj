@@ -8,4 +8,8 @@
         <RootNamespace>agent</RootNamespace>
     </PropertyGroup>
 
+    <ItemGroup>
+      <ProjectReference Include="..\tunnel\tunnel.csproj" />
+    </ItemGroup>
+
 </Project>

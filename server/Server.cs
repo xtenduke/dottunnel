@@ -7,62 +7,65 @@ using tunnel;
 
 public class Server(String listenAddress, Int32 tunnelPort, Int32 clientPort)
 {
-    private TcpClient? tunnelConnection;
-    private Tunnel? tunnel;
+    private Tunnel? _tunnel;
     
-    public void Run()
+    public async Task Run()
     {
         // listen for connections on tunnelPort and clientPort
         // when bytes are received, write to the other 
         
         // Start listening for client requests.
         // naming conventions suck
-        TcpListener clientListener = CreateListener(listenAddress, clientPort);
+        var clientListener = CreateListener(listenAddress, clientPort);
         while (true)
         {
             // accept a new connection every loop
-            TcpClient client = clientListener.AcceptTcpClient();
-            Console.WriteLine("Server connected on {0}", clientPort);
-            HandleClient(client);
+            var client = await clientListener.AcceptTcpClientAsync();
+            Console.WriteLine("Client connected on {0}", clientPort);
+            await HandleClient(client);
         }
+
     }
     
-    private void HandleClient(TcpClient client)
+    private async Task HandleClient(TcpClient client)
     {
         // assuming connected
-        NetworkStream clientStream = client.GetStream();
-
-        if (tunnel == null || tunnelConnection == null)
+        // Just make me backoff instead of trying to connect when first client connects
+        if (_tunnel == null)
         {
-            tunnelConnection = CreateListener(listenAddress, tunnelPort).AcceptTcpClient();
-            tunnel = new Tunnel(tunnelConnection.GetStream());
+            Console.WriteLine("Created new tunnel connection.....");
+            var listener = CreateListener(listenAddress, tunnelPort);
+            var tunnelConnection = await listener.AcceptTcpClientAsync();
+            _tunnel = new Tunnel(tunnelConnection);
         }
 
-        string connectionId = tunnel.AddConnection(clientStream);
+        var connectionId = _tunnel.AddConnection(client);
         
-        // assuming connected
-        NetworkStream proxyStream = tunnelConnection.GetStream();
-
-        
-        tunnel.WriteIntoTunnel(clientStream, connectionId);
-        Console.WriteLine("Server wrote client to agent");
-        tunnel.WriteFromTunnel();
-        Console.WriteLine("Server wrote proxy to user");
+        try
+        {
+            await _tunnel.WriteIntoTunnel(client, connectionId);
+        }
+        catch (IOException)
+        {
+            Console.WriteLine("Caught IOException writing to tunnel");
+        }
+                        
+        try
+        {
+            await _tunnel.WriteFromTunnel();
+        }
+        catch (IOException)
+        {
+            Console.WriteLine("Caught IOException writing to tunnel");
+        }
     }
 
     private static TcpListener CreateListener(String listenAddress, Int32 listenPort)
     {
-        IPAddress localAddress = IPAddress.Parse(listenAddress);
-        TcpListener server = new TcpListener(localAddress, listenPort);
+        var localAddress = IPAddress.Parse(listenAddress);
+        var server = new TcpListener(localAddress, listenPort);
         server.Start();
         Console.WriteLine("Server listening on {0}", listenPort);
         return server;
-    }
-    
-    public static byte[] TrimEnd(byte[] array)
-    {
-        int lastIndex = Array.FindLastIndex(array, b => b != 0);
-        Array.Resize(ref array, lastIndex + 1);
-        return array;
     }
 }
