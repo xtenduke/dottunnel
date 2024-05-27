@@ -9,11 +9,10 @@ public class Program
     // Listen to incoming connections to serve to users
     private static readonly Int32 UserPort = 8080;
 
-    public static async Task Main()
+    public static void Main()
     {
         Server server = new Server(address, TunnelPort, UserPort);
 
-        await server.Run();
-
+        server.Run();
     }
 }
