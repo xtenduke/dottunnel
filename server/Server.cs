@@ -1,11 +1,9 @@
 namespace server;
-using System.IO;
 using System.Net;
 using System.Net.Sockets;
-using System.Text;
 using tunnel;
 
-public class Server(String listenAddress, Int32 tunnelPort, Int32 clientPort)
+public class Server(string listenAddress, int tunnelPort, int clientPort)
 {
     public void Run()
     {
@@ -25,20 +23,20 @@ public class Server(String listenAddress, Int32 tunnelPort, Int32 clientPort)
         }
     }
     
-    private void HandleClient(TcpClient client, TcpClient proxyConnection)
+    private static void HandleClient(TcpClient client, TcpClient proxyConnection)
     {
         Console.WriteLine("HandleClient");
         var clientStream = client.GetStream();
         var proxyStream = proxyConnection.GetStream();
-        Task.Run(() => ConnectionManager.ForwardData(clientStream, proxyStream));
-        Task.Run(() => ConnectionManager.ForwardData(proxyStream, clientStream));
+        Task.Run(() => ConnectionHelper.ForwardData(clientStream, proxyStream));
+        Task.Run(() => ConnectionHelper.ForwardData(proxyStream, clientStream));
     }
 
-    private static TcpListener CreateListener(String listenAddress, Int32 listenPort)
+    private static TcpListener CreateListener(string listenAddress, int listenPort)
     {
         var localAddress = IPAddress.Parse(listenAddress);
         var server = new TcpListener(localAddress, listenPort);
-        server.Start(1);
+        server.Start(1); // allow only one pending connection at a time - blocking the agent
         Console.WriteLine("Server listening on {0}", listenPort);
         return server;
     }

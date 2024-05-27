@@ -6,7 +6,7 @@ using tunnel;
 
 // Source address is the source we are connecting to
 // Destination is the server 
-public class Agent(String sourceAddress, Int32 sourcePort, String proxyAddress, Int32 proxyPort)
+public class Agent(string sourceAddress, int sourcePort, string proxyAddress, int proxyPort)
 {
     // Open a connection to the destination
     public void Run()
@@ -15,9 +15,9 @@ public class Agent(String sourceAddress, Int32 sourcePort, String proxyAddress, 
         while (true)
         {
             // when server accepts a connection
-            var proxyConnection = ConnectionManager.EstablishConnection(proxyAddress, proxyPort);
+            var proxyConnection = ConnectionHelper.EstablishConnection(proxyAddress, proxyPort);
             // connect out to the source
-            var sourceConnection = ConnectionManager.EstablishConnection(sourceAddress, sourcePort);
+            var sourceConnection = ConnectionHelper.EstablishConnection(sourceAddress, sourcePort);
             // swap buffers between
             ThreadPool.QueueUserWorkItem(delegate { HandleConnection(proxyConnection, sourceConnection); });
         }
@@ -27,7 +27,7 @@ public class Agent(String sourceAddress, Int32 sourcePort, String proxyAddress, 
     {
         var proxyStream = proxyConnection.GetStream();
         var sourceStream = sourceConnection.GetStream();
-        Task.Run(() => ConnectionManager.ForwardData(proxyStream, sourceStream));
-        Task.Run(() => ConnectionManager.ForwardData(sourceStream, proxyStream));
+        Task.Run(() => ConnectionHelper.ForwardData(proxyStream, sourceStream));
+        Task.Run(() => ConnectionHelper.ForwardData(sourceStream, proxyStream));
     }
 }

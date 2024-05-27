@@ -11,7 +11,7 @@ public class Program
 
     public static void Main()
     {
-        Server server = new Server(address, TunnelPort, UserPort);
+        Server server = new(address, TunnelPort, UserPort);
 
         server.Run();
     }

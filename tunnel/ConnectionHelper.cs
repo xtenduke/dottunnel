@@ -2,12 +2,12 @@ using System.Net.Sockets;
 
 namespace tunnel;
 
-public class ConnectionManager
+public class ConnectionHelper
 {
     public static async Task ForwardData(NetworkStream source, NetworkStream destination)
     {
         var buffer = new byte[4096];
-        var bytesRead = 0;
+        int bytesRead;
         var totalRead = 0;
         while ((bytesRead = await source.ReadAsync(buffer, 0, buffer.Length)) > 0)
         {
@@ -44,6 +44,5 @@ public class ConnectionManager
             Thread.Sleep(200);
             return EstablishConnection(destination, port);
         }
-        
     }
 }
