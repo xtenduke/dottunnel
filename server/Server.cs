@@ -38,7 +38,7 @@ public class Server(String listenAddress, Int32 tunnelPort, Int32 clientPort)
     {
         var localAddress = IPAddress.Parse(listenAddress);
         var server = new TcpListener(localAddress, listenPort);
-        server.Start();
+        server.Start(1);
         Console.WriteLine("Server listening on {0}", listenPort);
         return server;
     }

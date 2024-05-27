@@ -1,3 +1,5 @@
+using System.Net.Sockets;
+
 namespace agent;
 
 using tunnel;
@@ -14,14 +16,18 @@ public class Agent(String sourceAddress, Int32 sourcePort, String proxyAddress, 
         {
             // when server accepts a connection
             var proxyConnection = ConnectionManager.EstablishConnection(proxyAddress, proxyPort);
-            var proxyStream = proxyConnection.GetStream();
             // connect out to the source
             var sourceConnection = ConnectionManager.EstablishConnection(sourceAddress, sourcePort);
-            var sourceStream = sourceConnection.GetStream();
             // swap buffers between
-            Task.Run(() => ConnectionManager.ForwardData(proxyStream, sourceStream));
-            Task.Run(() => ConnectionManager.ForwardData(sourceStream, proxyStream));
-            Thread.Sleep(1000);
+            ThreadPool.QueueUserWorkItem(delegate { HandleConnection(proxyConnection, sourceConnection); });
         }
+    }
+
+    private void HandleConnection(TcpClient proxyConnection, TcpClient sourceConnection)
+    {
+        var proxyStream = proxyConnection.GetStream();
+        var sourceStream = sourceConnection.GetStream();
+        Task.Run(() => ConnectionManager.ForwardData(proxyStream, sourceStream));
+        Task.Run(() => ConnectionManager.ForwardData(sourceStream, proxyStream));
     }
 }

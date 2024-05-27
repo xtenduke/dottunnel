@@ -20,7 +20,7 @@ public class ConnectionManager
         if (totalRead == 0)
         {
             Thread.Sleep(200);
-            ForwardData(source, destination);
+            await ForwardData(source, destination);
         }
         else
         {
