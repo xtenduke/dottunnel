@@ -36,7 +36,7 @@ public class Server(string listenAddress, int tunnelPort, int clientPort)
     {
         var localAddress = IPAddress.Parse(listenAddress);
         var server = new TcpListener(localAddress, listenPort);
-        server.Start(1); // allow only one pending connection at a time - blocking the agent
+        server.Start();
         Console.WriteLine("Server listening on {0}", listenPort);
         return server;
     }
